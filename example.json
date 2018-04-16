@@ -1,0 +1,31 @@
+{
+    "names": [
+        "Alice",
+        "Bob",
+        "Eve"
+    ],
+    "people": {
+        "Alice": {
+            "age": 20,
+            "knows": ["Bob"]
+        },
+        "Bob": {
+            "age": 21,
+            "knows": ["Alice"]
+        },
+        "Eve": {
+            "age": 22,
+            "knows": []
+        }
+    },
+    "jobs": {
+        "Alpha": {
+            "employees": [
+                "Alice", "Bob"
+            ]
+        },
+        "Beta": {
+            "employees": ["Eve"]
+        }
+    }
+}
