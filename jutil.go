@@ -61,13 +61,13 @@ func main() {
     // Parse all flags
     flag.Parse()
     
-    var context string = getContext(fileAction, createAction)
-    
-    switch context {
+    // Handle by context
+    switch getContext(fileAction, createAction) {
     case "file":
         var fileMode Mode = createMode("file", fileAction)
         var contents map[string]interface{} = fileMode.getContents()
         
+        // TODO: Remove prints, move into function, add map handler / recursion
         for key, val := range contents {
             switch value := val.(type) {
             case []interface{}:
@@ -80,7 +80,7 @@ func main() {
             }
         }
         
-        fmt.Println("Got contents")
+        fmt.Println("Success [0x00]")
     case "create":
         fmt.Println("Coming soon!")
     }
