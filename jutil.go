@@ -21,6 +21,7 @@ func main() {
     // [ ]: -c (create)
     // [ ]: -j (json)
     // [ ]: -v (value)
+    // [*]: -s (see)
     
     // Catch panics here
     defer func() {
@@ -44,6 +45,7 @@ func main() {
     var createAction string
     var jsonAction string
     var valueAction string
+    var seeAction bool
     
     // NOTE
     // flag.String(param, default, description)
@@ -59,6 +61,7 @@ func main() {
     flag.StringVar(&createAction, "c", "", "File to create from")
     flag.StringVar(&jsonAction, "j", "", "JSON output file name")
     flag.StringVar(&valueAction, "v", "", "Value to use")
+    flag.BoolVar(&seeAction, "s", false, "See contents of file")
     
     // Parse all flags
     flag.Parse()
@@ -70,14 +73,15 @@ func main() {
     
     switch getContext(rootActions) {
     case "file":
-        // var fileMode Mode = createMode("file", fileAction)
-        // var contents map[string]interface{} = fileMode.getContents()
+        var fileMode Mode = createMode("file", fileAction)
+        var contents map[string]interface{} = fileMode.getContents()
         
         subActions := make(map[string]bool)
         subActions["read"] = len(readAction) > 0
         subActions["edit"] = len(editAction) > 0
         subActions["append"] = len(appendAction) > 0
         subActions["delete"] = len(deleteAction) > 0
+        subActions["see"] = seeAction
         
         switch getContext(subActions) {
         case "read":
@@ -88,20 +92,9 @@ func main() {
             fmt.Println("Append is coming soon!")
         case "delete":
             fmt.Println("Delete is coming soon!")
+        case "see":
+            seeContents(contents, 0)
         }
-        
-        // // TODO: Remove prints, move into function, add map handler / recursion
-        // for key, val := range contents {
-        //     switch value := val.(type) {
-        //     case []interface{}:
-        //         fmt.Println(key, fmt.Sprintf("json[%d]", len(value)))
-        //         for i, v := range value {
-        //             fmt.Println(i, v)
-        //         }
-        //     default:
-        //         fmt.Println(key, value)
-        //     }
-        // }
         
         fmt.Println("Success [0x00]")
     case "create":
@@ -125,19 +118,25 @@ func countBool(tests map[string]bool) (int, []string) {
 // Determine context of script
 func getContext(rootActions map[string]bool) string {
     truthCount, trueNames := countBool(rootActions)
+    keys := make([]string, len(rootActions))
+    var i int = 0
+    for key, _ := range rootActions {
+        keys[i] = key
+        i = i + 1
+    }
     
     if (truthCount > 1) {
         allFlags := make([]string, len(trueNames))
         for n, name := range trueNames {
-            allFlags[n] = fmt.Sprintf("-%s", name[0])
+            allFlags[n] = fmt.Sprintf("-%s", string(name[0]))
         }
         
         var andFlags string = strings.Join(allFlags, " and ")
         panic(fmt.Sprintf("[0x02]: %s cannot be used together", andFlags))
     } else if (truthCount == 0) {
-        allFlags := make([]string, len(trueNames))
-        for n, name := range trueNames {
-            allFlags[n] = fmt.Sprintf("-%s", name[0])
+        allFlags := make([]string, len(keys))
+        for k, key := range keys {
+            allFlags[k] = fmt.Sprintf("-%s", string(key[0]))
         }
         
         var norFlags string = strings.Join(allFlags, " nor ")
@@ -202,4 +201,47 @@ func (mode *Mode) getContents() map[string]interface{} {
     }
     
     return contents.(map[string]interface{})
+}
+
+func printIndent(indent int) {
+    for i := 0; i < indent; i++ {
+        fmt.Print("\t")
+    }
+}
+
+
+func seeLists(key, value interface{}, ind int) {
+    printIndent(ind)
+    fmt.Println(key, "[list]")
+    for i, v := range value.([]interface{}) {
+        switch v.(type) {
+        case map[string]interface{}:
+            printIndent(ind + 1)
+            fmt.Println(fmt.Sprintf("%d ", i))
+            seeContents(v, ind + 2)
+        case []interface{}:
+            seeLists(i, v, ind + 1)
+        default:
+            printIndent(ind + 1)
+            fmt.Println(fmt.Sprintf("%d ", i))
+            printIndent(ind + 2)
+            fmt.Println(v, fmt.Sprintf("[%T]", v))
+        }
+    }
+}
+
+func seeContents(contents interface{}, indent int) {
+    for key, val := range contents.(map[string]interface{}) {
+        switch value := val.(type) {
+        case map[string]interface{}:
+            printIndent(indent)
+            fmt.Println(key, "[dict]")
+            seeContents(value, indent + 1)
+        case []interface{}:
+            seeLists(key, value, indent)
+        default:
+            printIndent(indent)
+            fmt.Println(key, value, fmt.Sprintf("[%T]", value))
+        }
+    }
 }

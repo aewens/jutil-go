@@ -27,5 +27,9 @@
         "Beta": {
             "employees": ["Eve"]
         }
-    }
+    },
+    "weird": [
+        ["w","e","i","r","d"],
+        [true, false, true]
+    ]
 }
