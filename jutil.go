@@ -15,7 +15,7 @@ func main() {
     // TODO
     // [*]: -f (file)
     // [*]: -r (read)
-    // [ ]: -e (edit)
+    // [*]: -e (edit)
     // [ ]: -a (append)
     // [*]: -d (delete)
     // [ ]: -i (ini)
@@ -84,12 +84,20 @@ func main() {
         case "read":
             contents.Read(parsePath(readAction), 0)
         case "edit":
-            fmt.Println("Edit is coming soon!")
+            if valueAction == "" {
+                panic(fmt.Sprintf("[0x11]: Value is missing"))
+            }
+            contents.Edit(parsePath(editAction), valueAction)
+            fileMode.Save(contents)
         case "append":
+            if valueAction == "" {
+                panic(fmt.Sprintf("[0x11]: Value is missing"))
+            }
             fmt.Println("Append is coming soon!")
         case "delete":
             // fmt.Println("Delete is coming soon!")
             contents.Delete(parsePath(deleteAction))
+            // contents.See(0)
             fileMode.Save(contents)
         case "see":
             contents.See(0)
@@ -356,8 +364,8 @@ func (c *Contents) Read(path []string, indent int) {
     }
 }
 
-// View value from JSON file based on provided path
-func (c *Contents) Delete(path []string) {
+// Delete value from JSON file based on provided path
+func (c *Contents) Delete(path []string) interface{} {
     var search string
     var remaining []string
     var found bool = false
@@ -380,16 +388,16 @@ func (c *Contents) Delete(path []string) {
             if remaining == nil {
                 delete(dict, key)
                 fmt.Println(fmt.Sprintf("Deleting %s", key))
-                continue
+                return body
             }
             
             switch value := val.(type) {
             case map[string]interface{}:
                 newContents := &Contents{value}
-                newContents.Delete(remaining)
+                dict[key] = newContents.Delete(remaining)
             case []interface{}:
                 newContents := &Contents{value}
-                newContents.Delete(remaining)
+                dict[key] = newContents.Delete(remaining)
             default:
                 continue
             }
@@ -403,17 +411,18 @@ func (c *Contents) Delete(path []string) {
             
             if remaining == nil {
                 list = append(list[:i], list[i+1:]...)
+                body = list
                 fmt.Println(fmt.Sprintf("Deleting %d", i))
-                continue
+                return body
             }
             
             switch value := val.(type) {
             case map[string]interface{}:
                 newContents := &Contents{value}
-                newContents.Delete(remaining)
+                list[i] = newContents.Delete(remaining)
             case []interface{}:
                 newContents := &Contents{value}
-                newContents.Delete(remaining)
+                list[i] = newContents.Delete(remaining)
             default:
                 continue
             }
@@ -422,5 +431,106 @@ func (c *Contents) Delete(path []string) {
     
     if !found {
         panic(fmt.Sprintf("[0x10]: '%s' was not found", search))
+    }
+    
+    return body
+}
+
+// Edit value from JSON file based on provided path
+func (c *Contents) Edit(path []string, entry string) {
+    var search string
+    var remaining []string
+    var found bool = false
+    
+    if path != nil {
+        search = path[0]
+        if len(path) > 1 {
+            remaining = path[1:]
+        }
+    }
+    
+    var body interface{} = c.body
+    if dict, ok := body.(map[string]interface{}); ok {
+        for key, val := range dict {
+            if path != nil && key != search {
+                continue
+            }
+            found = true
+            
+            if remaining == nil {
+                switch dict[key].(type) {
+                case float64:
+                    if f, err := strconv.ParseFloat(entry, 64); err == nil {
+                        dict[key] = f
+                    } else {
+                        dict[key] = entry
+                    }
+                case bool:
+                    if entry == "true" {
+                        dict[key] = true
+                    } else {
+                        dict[key] = false
+                    }
+                default:
+                    dict[key] = entry
+                }
+                fmt.Println(fmt.Sprintf("Editing %s", key))
+                continue
+            }
+            
+            switch value := val.(type) {
+            case map[string]interface{}:
+                newContents := &Contents{value}
+                newContents.Edit(remaining, entry)
+            case []interface{}:
+                newContents := &Contents{value}
+                newContents.Edit(remaining, entry)
+            default:
+                continue
+            }
+        }
+    } else if list, ok := body.([]interface{}); ok {
+        for i, val := range list {
+            if path != nil && strconv.Itoa(i) != search {
+                continue
+            }
+            found = true
+            
+            if remaining == nil {
+                switch list[i].(type) {
+                case float64:
+                    if f, err := strconv.ParseFloat(entry, 64); err == nil {
+                        list[i] = f
+                    } else {
+                        list[i] = entry
+                    }
+                case bool:
+                    if entry == "true" {
+                        list[i] = true
+                    } else {
+                        list[i] = false
+                    }
+                default:
+                    list[i] = entry
+                }
+                fmt.Println(fmt.Sprintf("Editing %d", i))
+                continue
+            }
+            
+            switch value := val.(type) {
+            case map[string]interface{}:
+                newContents := &Contents{value}
+                newContents.Edit(remaining, entry)
+            case []interface{}:
+                newContents := &Contents{value}
+                newContents.Edit(remaining, entry)
+            default:
+                continue
+            }
+        }
+    }
+    
+    if !found {
+        panic(fmt.Sprintf("[0x12]: '%s' was not found", search))
     }
 }
