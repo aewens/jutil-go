@@ -17,7 +17,7 @@ func main() {
     // [*]: -r (read)
     // [ ]: -e (edit)
     // [ ]: -a (append)
-    // [ ]: -d (delete)
+    // [*]: -d (delete)
     // [ ]: -i (ini)
     // [ ]: -c (create)
     // [ ]: -j (json)
@@ -71,7 +71,7 @@ func main() {
     switch getContext(rootActions) {
     case "file":
         var fileMode Mode = createMode("file", fileAction)
-        var contents Contents = fileMode.GetContents()
+        var contents Contents = fileMode.Get()
         
         subActions := make(map[string]bool)
         subActions["read"] = len(readAction) > 0
@@ -82,18 +82,17 @@ func main() {
         
         switch getContext(subActions) {
         case "read":
-            readContents(contents, parsePath(readAction), 0)
+            contents.Read(parsePath(readAction), 0)
         case "edit":
             fmt.Println("Edit is coming soon!")
         case "append":
             fmt.Println("Append is coming soon!")
         case "delete":
-            fmt.Println("Delete is coming soon!")
-            // deleteContents(contents, parsePath(deleteAction), 0)
-            // fmt.Println(contents)
-            // fileMode.SaveContents(contents)
+            // fmt.Println("Delete is coming soon!")
+            contents.Delete(parsePath(deleteAction))
+            fileMode.Save(contents)
         case "see":
-            contents.SeeContents(0)
+            contents.See(0)
         }
         
         fmt.Println("Success [0x00]")
@@ -182,7 +181,7 @@ func createMode(params ...string) Mode {
 }
 
 // Returns decoded contents of file
-func (mode *Mode) GetContents() Contents {
+func (mode *Mode) Get() Contents {
     if mode.action != "file" {
         panic(fmt.Sprintf("[0x07]: '%s' is not a file mode", mode.action))
     }
@@ -208,28 +207,28 @@ func (mode *Mode) GetContents() Contents {
 }
 
 // Returns decoded contents of file
-// func (mode *Mode) SaveContents(Contents contents) {
-//     if mode.action != "file" {
-//         panic(fmt.Sprintf("[0x0B]: '%s' is not a file mode", mode.action))
-//     }
-// 
-//     path, err := filepath.Abs(mode.path)
-//     if err != nil {
-//         panic(fmt.Sprintf("[0x0C]: %s", err.Error()))
-//     }
-// 
-//     bytes, err := json.MarshalIndent(contents.body, "", "    ")
-//     if err != nil {
-//         panic("[0xD]: Failed to encode contents")
-//     }
-// 
-//     err = ioutil.WriteFile(path, bytes, 0644)
-//     if err != nil {
-//         panic(fmt.Sprintf("[0x0E]: %s", err.Error()))
-//     }
-// 
-//     fmt.Println("Saved file!")
-// }
+func (mode *Mode) Save(contents Contents) {
+    if mode.action != "file" {
+        panic(fmt.Sprintf("[0x0B]: '%s' is not a file mode", mode.action))
+    }
+
+    path, err := filepath.Abs(mode.path)
+    if err != nil {
+        panic(fmt.Sprintf("[0x0C]: %s", err.Error()))
+    }
+    
+    bytes, err := json.MarshalIndent(contents.body, "", "    ")
+    if err != nil {
+        panic("[0xD]: Failed to encode contents")
+    }
+    
+    err = ioutil.WriteFile(path, bytes, 0644)
+    if err != nil {
+        panic(fmt.Sprintf("[0x0E]: %s", err.Error()))
+    }
+    
+    fmt.Println("Saved file!")
+}
 
 // Handle indentation for displaying JSON
 func printIndent(indent int) {
@@ -238,29 +237,14 @@ func printIndent(indent int) {
     }
 }
 
-// Handles the rendering of list structures for seeContents
-// func seeLists(key, value interface{}, indent int) {
-//     printIndent(indent)
-//     fmt.Println(key, "[list]")
-//     for i, v := range value.([]interface{}) {
-//         switch v.(type) {
-//         case map[string]interface{}:
-//             printIndent(indent + 1)
-//             fmt.Println(fmt.Sprintf("%d ", i))
-//             seeContents(v, indent + 2)
-//         case []interface{}:
-//             seeLists(i, v, indent + 1)
-//         default:
-//             printIndent(indent + 1)
-//             fmt.Println(fmt.Sprintf("%d ", i))
-//             printIndent(indent + 2)
-//             fmt.Println(v, fmt.Sprintf("[%T]", v))
-//         }
-//     }
-// }
+// Converts path to array for searching
+func parsePath(path string) []string {
+    var parsed []string = strings.Split(path, "/")
+    return parsed
+}
 
 // Renders the JSON of the file
-func (c *Contents) SeeContents(indent int) {
+func (c *Contents) See(indent int) {
     var body interface{} = c.body
     if dict, ok := body.(map[string]interface{}); ok {
         for key, val := range dict {
@@ -269,12 +253,12 @@ func (c *Contents) SeeContents(indent int) {
                 printIndent(indent)
                 fmt.Println(key, "[dict]")
                 newContents := &Contents{value}
-                newContents.SeeContents(indent + 1)
+                newContents.See(indent + 1)
             case []interface{}:
                 printIndent(indent)
                 fmt.Println(key, "[list]")
                 newContents := &Contents{value}
-                newContents.SeeContents(indent + 1)
+                newContents.See(indent + 1)
             default:
                 printIndent(indent)
                 fmt.Println(key, value, fmt.Sprintf("[%T]", value))
@@ -287,10 +271,12 @@ func (c *Contents) SeeContents(indent int) {
                 printIndent(indent)
                 fmt.Println(fmt.Sprintf("%d ", i))
                 newContents := &Contents{value}
-                newContents.SeeContents(indent + 1)
+                newContents.See(indent + 1)
             case []interface{}:
+                printIndent(indent)
+                fmt.Println(fmt.Sprintf("%d ", i))
                 newContents := &Contents{value}
-                newContents.SeeContents(indent)
+                newContents.See(indent + 1)
             default:
                 printIndent(indent)
                 fmt.Println(fmt.Sprintf("%d ", i))
@@ -301,14 +287,8 @@ func (c *Contents) SeeContents(indent int) {
     }
 }
 
-// Converts path to array for searching
-func parsePath(path string) []string {
-    var parsed []string = strings.Split(path, "/")
-    return parsed
-}
-
-// Handles the rendering of list structures for readContent
-func readLists(key, value interface{}, path []string, indent int) {
+// View value from JSON file based on provided path
+func (c *Contents) Read(path []string, indent int) {
     var search string
     var remaining []string
     var found bool = false
@@ -320,68 +300,127 @@ func readLists(key, value interface{}, path []string, indent int) {
         }
     }
     
-    printIndent(indent)
-    fmt.Println(key, "[list]")
-    
-    for i, v := range value.([]interface{}) {
-        if path != nil && strconv.Itoa(i) != search {
-            continue
+    var body interface{} = c.body
+    if dict, ok := body.(map[string]interface{}); ok {
+        for key, val := range dict {
+            if path != nil && key != search {
+                continue
+            }
+            found = true
+            
+            switch value := val.(type) {
+            case map[string]interface{}:
+                printIndent(indent)
+                fmt.Println(key, "[dict]")
+                newContents := &Contents{value}
+                newContents.Read(remaining, indent + 1)
+            case []interface{}:
+                printIndent(indent)
+                fmt.Println(key, "[list]")
+                newContents := &Contents{value}
+                newContents.Read(remaining, indent + 1)
+            default:
+                printIndent(indent)
+                fmt.Println(key, value, fmt.Sprintf("[%T]", value))
+            }
         }
-        found = true
-        
-        switch v.(type) {
-        case map[string]interface{}:
-            printIndent(indent + 1)
-            fmt.Println(fmt.Sprintf("%d ", i))
-            readContents(v, remaining, indent + 2)
-        case []interface{}:
-            readLists(i, v, remaining, indent + 1)
-        default:
-            printIndent(indent + 1)
-            fmt.Println(fmt.Sprintf("%d ", i))
-            printIndent(indent + 2)
-            fmt.Println(v, fmt.Sprintf("[%T]", v))
+    } else if list, ok := body.([]interface{}); ok {
+        for i, val := range list {
+            if path != nil && strconv.Itoa(i) != search {
+                continue
+            }
+            found = true
+            
+            switch value := val.(type) {
+            case map[string]interface{}:
+                printIndent(indent)
+                fmt.Println(fmt.Sprintf("%d ", i))
+                newContents := &Contents{value}
+                newContents.Read(remaining, indent + 1)
+            case []interface{}:
+                printIndent(indent)
+                fmt.Println(fmt.Sprintf("%d ", i))
+                newContents := &Contents{value}
+                newContents.Read(remaining, indent + 1)
+            default:
+                printIndent(indent)
+                fmt.Println(fmt.Sprintf("%d ", i))
+                printIndent(indent + 1)
+                fmt.Println(value, fmt.Sprintf("[%T]", value))
+            }
+        }
+    }
+    
+    if !found {
+        panic(fmt.Sprintf("[0x0F]: '%s' was not found", search))
+    }
+}
+
+// View value from JSON file based on provided path
+func (c *Contents) Delete(path []string) {
+    var search string
+    var remaining []string
+    var found bool = false
+    
+    if path != nil {
+        search = path[0]
+        if len(path) > 1 {
+            remaining = path[1:]
+        }
+    }
+    
+    var body interface{} = c.body
+    if dict, ok := body.(map[string]interface{}); ok {
+        for key, val := range dict {
+            if path != nil && key != search {
+                continue
+            }
+            found = true
+            
+            if remaining == nil {
+                delete(dict, key)
+                fmt.Println(fmt.Sprintf("Deleting %s", key))
+                continue
+            }
+            
+            switch value := val.(type) {
+            case map[string]interface{}:
+                newContents := &Contents{value}
+                newContents.Delete(remaining)
+            case []interface{}:
+                newContents := &Contents{value}
+                newContents.Delete(remaining)
+            default:
+                continue
+            }
+        }
+    } else if list, ok := body.([]interface{}); ok {
+        for i, val := range list {
+            if path != nil && strconv.Itoa(i) != search {
+                continue
+            }
+            found = true
+            
+            if remaining == nil {
+                list = append(list[:i], list[i+1:]...)
+                fmt.Println(fmt.Sprintf("Deleting %d", i))
+                continue
+            }
+            
+            switch value := val.(type) {
+            case map[string]interface{}:
+                newContents := &Contents{value}
+                newContents.Delete(remaining)
+            case []interface{}:
+                newContents := &Contents{value}
+                newContents.Delete(remaining)
+            default:
+                continue
+            }
         }
     }
     
     if !found {
         panic(fmt.Sprintf("[0x10]: '%s' was not found", search))
-    }
-}
-
-// View value from JSON file based on provided path
-func readContents(contents interface{}, path []string, indent int) {
-    var search string
-    var remaining []string
-    var found bool = false
-    
-    if path != nil {
-        search = path[0]
-        if len(path) > 1 {
-            remaining = path[1:]
-        }
-    }
-    
-    for key, val := range contents.(map[string]interface{}) {
-        if path != nil && key != search {
-            continue
-        }
-        found = true
-        
-        switch value := val.(type) {
-        case map[string]interface{}:
-            printIndent(indent)
-            fmt.Println(key, "[dict]")
-            readContents(value, remaining, indent + 1)
-        case []interface{}:
-            readLists(key, value, remaining, indent)
-        default:
-            printIndent(indent)
-            fmt.Println(key, value, fmt.Sprintf("[%T]", value))
-        }
-    }
-    
-    if !found {
-        panic(fmt.Sprintf("[0x11]: '%s' was not found", search))
     }
 }
